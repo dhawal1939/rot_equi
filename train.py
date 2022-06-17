@@ -16,7 +16,10 @@ from torch.utils.tensorboard import SummaryWriter
 train_file_dir = Path(file_dir) / 'HDRI_Train'
 test_file_dir = Path(file_dir) / 'HDRI_Test'
 _log_dir = Path(log_dir_path) / datetime.now().strftime("%Y_%m_%d_%H_%M")
-(_log_dir).absolute().mkdir(exist_ok=True, parents=True)
+_log_dir.absolute().mkdir(exist_ok=True, parents=True)
+
+_save_path = Path(log_dir_path) / datetime.now().strftime("%Y_%m_%d_%H_%M")
+Path(_save_path).absolute().mkdir(exist_ok=True, parents=True)
 
 train_files_list = sorted(glob.glob(str(train_file_dir) + '/*.exr'))
 test_files_list = sorted(glob.glob(str(test_file_dir) + '/*.exr'))
@@ -29,7 +32,7 @@ model = EquiVarianceIllumination(in_dim=N_val, inter_dim=N_val ** 2 + N_val, num
 train_dataset = DirectionColorHDRDataset(train_files_list,
                                          resolution=initial_resolution)
 train_loader = DataLoader(train_dataset,
-                          shuffle=True,
+                          shuffle=False,
                           batch_size=1,
                           num_workers=0)
 
@@ -78,3 +81,11 @@ for epoch in range(epochs):
     loss.backward()
     optim.step()
     scheduler.step()
+
+    if epoch % 100 == 0:
+        torch.save({
+                        'epoch': epoch,
+                        'model_state_dict': model.state_dict(),
+                        'optimizer_state_dict': optim.state_dict(),
+                        'loss': loss,
+                    }, str(_save_path / f'checkpoint_{epoch}.pt'))
