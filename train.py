@@ -44,9 +44,17 @@ optim = torch.optim.Adam(params=model.parameters(),
 scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=optim,
                                                    gamma=(1e-7 / learning_rate) ** (1 / (epochs - 1)))
 
+start_epoch = 0
 model = model.to(device)
+if load_wt:
+    check_point = torch.load('./logs/2022_06_17_17_54/checkpoint_700.pt')
+    model.load_state_dict(check_point['model_state_dict'])
+    start_epoch = check_point['epoch']
+    optim.load_state_dict(check_point['optimizer_state_dict'])
+    # current_resolution = check_point['current_resolution']
+
 model.train()
-for epoch in range(epochs):
+for epoch in range(start_epoch, epochs):
     if epoch in [800, 1600]:
         current_resolution *= 2
         train_dataset.resize(current_resolution)
@@ -72,20 +80,23 @@ for epoch in range(epochs):
         pbar.update()
     pbar.close()
 
-    loss = recons_loss
+    loss += recons_loss
     loss += (beta_kld / latent_dim) * (0.5 * kld_loss)
     print(f'Loss: {loss.item()}, Epoch: {epoch}', flush=True)
     writer.add_scalar('Loss/train', loss.item(), epoch)
-    writer.add_image('env_map', torch.e ** pred_vals.view(current_resolution, 2 * current_resolution, 3),
+    writer.add_image('pred_env_map', torch.e ** pred_vals.view(current_resolution, 2 * current_resolution, 3),
                      global_step=epoch, dataformats='HWC')   # probably reverse channel
+    writer.add_image('gt_env_map', torch.e ** gt_rgb_vals[0].view(current_resolution, 2 * current_resolution, 3),
+                     global_step=epoch, dataformats='HWC')  # probably reverse channel
     loss.backward()
     optim.step()
     scheduler.step()
 
     if epoch % 100 == 0:
         torch.save({
-                        'epoch': epoch,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optim.state_dict(),
-                        'loss': loss,
-                    }, str(_save_path / f'checkpoint_{epoch}.pt'))
+            'epoch': epoch,
+            'model_state_dict': model.state_dict(),
+            'optimizer_state_dict': optim.state_dict(),
+            'loss': loss,
+            'current_resolution': current_resolution
+        }, str(_save_path / f'checkpoint_{epoch}.pt'))

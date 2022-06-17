@@ -14,3 +14,5 @@ device = 'cpu:0' if not torch.cuda.is_available() else 'cuda:0'
 file_dir = 'data/'
 log_dir_path = './logs/'
 save_path = './save_path/'
+load_wt = True
+
