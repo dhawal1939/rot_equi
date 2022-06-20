@@ -2,10 +2,9 @@
 # @Author  : dhawal1939
 # @File    : model.py
 
-from collections import OrderedDict
 import torch
 import numpy as np
-from torch import nn, var
+from torch import nn
 from config import device
 from siren_pytorch import SirenNet, Sine
 

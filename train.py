@@ -3,9 +3,6 @@
 # @File    : train.py
 
 import glob
-from sre_constants import LITERAL_LOC_IGNORE
-
-from numpy import percentile
 from utils import *
 from config import *
 from tqdm import tqdm
@@ -24,7 +21,7 @@ _log_dir.absolute().mkdir(exist_ok=True, parents=True)
 _save_path = Path(log_dir_path) / datetime.now().strftime("%Y_%m_%d_%H_%M")
 Path(_save_path).absolute().mkdir(exist_ok=True, parents=True)
 
-train_files_list = sorted(glob.glob(str(train_file_dir) + '/*.exr'))[:400]
+train_files_list = sorted(glob.glob(str(train_file_dir) + '/*.exr'))[:100]
 test_files_list = sorted(glob.glob(str(test_file_dir) + '/*.exr'))
 
 writer = SummaryWriter(_log_dir)
@@ -84,22 +81,11 @@ for epoch in range(start_epoch, epochs):
 
         pred_vals, mu, var, log_var = model(directions, env_idx)
         
-        # if epoch % 10 == 0:
-        #     print(torch.min(sin_theta), torch.max(sin_theta), 
-        #         torch.min(gt_rgb_vals), torch.max(gt_rgb_vals),
-        #         torch.min(pred_vals), torch.max(pred_vals))
-        #     input()
-
         batch_recons_loss = (1 / sin_theta.shape[1]) * torch.sum(sin_theta.t() * (pred_vals - gt_rgb_vals[0]) ** 2)
         batch_kld_loss = torch.sum(1 + log_var - var - mu[0] ** 2)
         recons_loss += batch_recons_loss
         kld_loss += batch_kld_loss
         
-        # optim.zero_grad()
-        # loss = batch_recons_loss - (beta_kld / latent_dim) * (0.5 * batch_kld_loss)
-        # loss.backward()
-        # optim.step()
-
         torch.cuda.empty_cache()
         pbar.update()
     pbar.close()
@@ -108,8 +94,7 @@ for epoch in range(start_epoch, epochs):
         display_sample_y_ = pred_vals
         display_sample_y = gt_rgb_vals
 
-    loss += recons_loss
-    loss -= (beta_kld / latent_dim) * (0.5 * kld_loss)
+    loss += recons_loss - (beta_kld / latent_dim) * (0.5 * kld_loss)
 
     loss.backward()
     optim.step()

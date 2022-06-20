@@ -47,13 +47,7 @@ class DirectionColorHDRDataset(Dataset):
                                     (2 * self.resolution, self.resolution)) for env_path in self.file_list]
         self.env_maps = [np.clip(img, img[img > 0.0].min(), img[img < np.inf].max()) for img in self.env_maps]
         self.env_maps = torch.from_numpy(np.array(self.env_maps))
-        # self.env_maps = np.asarray([cv2.imread(env_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH) for env_path in self.file_list])
-        # self.env_maps = torch.from_numpy(self.env_maps).permute(0, 3, 1, 2)
-        # print(self.env_maps.min(), self.env_maps.max(), self.env_maps.shape)
-        # self.env_maps = nn.functional.interpolate(self.env_maps, mode='bilinear', size=[self.resolution, 2 * self.resolution])
-        # print(self.env_maps.min(), self.env_maps.max(), self.env_maps.shape, self.env_maps.dtype)
-        torch.clamp_(self.env_maps, min = 1e-20, max = 1e25)
-
+        # torch.clamp_(self.env_maps, min = 1e-20, max = 1e25)
         torch.nan_to_num_(self.env_maps, nan=1e-20)
 
         self.env_maps = self.env_maps.reshape(-1, 2 * self.resolution * self.resolution, 3)
@@ -66,23 +60,8 @@ class DirectionColorHDRDataset(Dataset):
             self.env_maps[:, :, i] = (self.env_maps[:, :, i] - _min) / (_max - _min + 1e-5)
                 
         self.env_maps[:, :, :] = 2 * self.env_maps - 1
-        
-
-        # print(self.env_maps.shape, resolution)
-        # if self.resolution > 32:
-        #     e = np.array(self.env_maps)
-        #     if np.isnan(e).any():
-        #         print(e.min(), e.max(), np.isnan(e).sum(), flush=True)
-        #         # raise Exception(f"Error nan in {i}")
-        #     if np.isinf(e).any():
-        #         print(e.min(), e.max(), np.isnan(e).sum(), flush=True)
-        #         raise Exception(f"Error inf in {i}")
-        #     exit(-1)
 
         self.directions = self.get_directions()
-        # if self.resolution > 16:
-        #     print('env-map', torch.sum(torch.isnan(self.env_maps)))
-        #     print('dir', torch.sum(torch.isnan(self.directions)))
 
     def __len__(self):
         return len(self.env_maps)
