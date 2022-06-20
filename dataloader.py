@@ -30,17 +30,13 @@ class DirectionColorHDRDataset(Dataset):
         width = torch.arange(2 * self.resolution) + 0.5
         height = torch.arange(self.resolution) + 0.5
         xx, yy = torch.meshgrid(width, height, indexing='xy')
-        xx = xx / (2 * self.resolution)
-        yy = (self.resolution - yy) / self.resolution
-        xx *= 2 * math.pi
-        yy *= math.pi
-
-        coords_phi_theta = torch.concat((xx.reshape(-1, 1), yy.reshape(-1, 1)), dim=-1)
-
-        self.sin_theta = torch.sin(coords_phi_theta[:, 1])
-        x = self.sin_theta * torch.cos(coords_phi_theta[:, 0])
-        y = self.sin_theta * torch.sin(coords_phi_theta[:, 0])
-        z = torch.cos(coords_phi_theta[:, 1])
+        coords = torch.permute(torch.stack((xx, yy)), (1, 2, 0))        
+        coords = coords / (self.resolution) * math.pi
+        coords = coords.reshape(-1, 2)
+        self.sin_theta = torch.sin(coords[:, 1])
+        x = self.sin_theta * torch.cos(coords[:, 0])
+        y = self.sin_theta * torch.sin(coords[:, 0])
+        z = torch.cos(coords[:, 1])
 
         # Directions
         return torch.concat((x, y, z), dim=-1).reshape(-1, 3)
@@ -49,33 +45,28 @@ class DirectionColorHDRDataset(Dataset):
         self.resolution = resolution
         self.env_maps = [cv2.resize(cv2.imread(env_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH), 
                                     (2 * self.resolution, self.resolution)) for env_path in self.file_list]
+        self.env_maps = [np.clip(img, img[img > 0.0].min(), img[img < np.inf].max()) for img in self.env_maps]
         self.env_maps = torch.from_numpy(np.array(self.env_maps))
         # self.env_maps = np.asarray([cv2.imread(env_path, cv2.IMREAD_ANYCOLOR | cv2.IMREAD_ANYDEPTH) for env_path in self.file_list])
         # self.env_maps = torch.from_numpy(self.env_maps).permute(0, 3, 1, 2)
         # print(self.env_maps.min(), self.env_maps.max(), self.env_maps.shape)
         # self.env_maps = nn.functional.interpolate(self.env_maps, mode='bilinear', size=[self.resolution, 2 * self.resolution])
         # print(self.env_maps.min(), self.env_maps.max(), self.env_maps.shape, self.env_maps.dtype)
-        torch.clamp_(self.env_maps, min = 1e-20, max = 1e30)
+        torch.clamp_(self.env_maps, min = 1e-20, max = 1e25)
 
-        # min_val = torch.min(self.env_maps)
-        # max_val = torch.max(self.env_maps)
-        # if min_val <= 0.:
-        #     self.env_maps = self.env_maps - min_val + 1e-15  # add epsilon
-
-        # if max_val == torch.inf:
-        #     self.env_maps[self.env_maps == torch.inf] = 1e30
-
+        torch.nan_to_num_(self.env_maps, nan=1e-20)
 
         self.env_maps = self.env_maps.reshape(-1, 2 * self.resolution * self.resolution, 3)
 
         # log and scale
         self.env_maps = torch.log(self.env_maps)
 
-
         for i in range(3):  # RGB
             _max, _min = torch.max(self.env_maps[:, :, i]), torch.min(self.env_maps[:, :, i])
-            self.env_maps[:, :, i] = (self.env_maps[:, :, i] - _min) / (_max - _min)
+            self.env_maps[:, :, i] = (self.env_maps[:, :, i] - _min) / (_max - _min + 1e-5)
+                
         self.env_maps[:, :, :] = 2 * self.env_maps - 1
+        
 
         # print(self.env_maps.shape, resolution)
         # if self.resolution > 32:
@@ -89,6 +80,9 @@ class DirectionColorHDRDataset(Dataset):
         #     exit(-1)
 
         self.directions = self.get_directions()
+        # if self.resolution > 16:
+        #     print('env-map', torch.sum(torch.isnan(self.env_maps)))
+        #     print('dir', torch.sum(torch.isnan(self.directions)))
 
     def __len__(self):
         return len(self.env_maps)
