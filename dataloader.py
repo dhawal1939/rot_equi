@@ -26,20 +26,45 @@ class DirectionColorHDRDataset(Dataset):
         self.file_list = file_list
         self.resize(resolution)
 
-    def get_directions(self):
-        width = torch.arange(2 * self.resolution) + 0.5
-        height = torch.arange(self.resolution) + 0.5
-        xx, yy = torch.meshgrid(width, height, indexing='xy')
-        coords = torch.permute(torch.stack((xx, yy)), (1, 2, 0))        
-        coords = coords / (self.resolution) * math.pi
-        coords = coords.reshape(-1, 2)
-        self.sin_theta = torch.sin(coords[:, 1])
-        x = self.sin_theta * torch.cos(coords[:, 0])
-        y = self.sin_theta * torch.sin(coords[:, 0])
-        z = torch.cos(coords[:, 1])
+    # def get_directions(self):
+    #     width = torch.arange(2 * self.resolution) + 0.5
+    #     height = torch.arange(self.resolution) + 0.5
+    #     xx, yy = torch.meshgrid(width, height, indexing='xy')
+    #     coords = torch.permute(torch.stack((xx, yy)), (1, 2, 0))        
+    #     coords = coords / (self.resolution) * math.pi
+    #     coords = coords.reshape(-1, 2)
+    #     self.sin_theta = torch.sin(coords[:, 1])
+    #     x = self.sin_theta * torch.sin(coords[:, 0])
+    #     y = self.sin_theta * torch.sin(coords[:, 0])
+    #     z = torch.cos(coords[:, 1])
 
-        # Directions
-        return torch.concat((x, y, z), dim=-1).reshape(-1, 3)
+    #     # Directions
+    #     return torch.concat((x, y, z), dim=-1).reshape(-1, 3)
+
+    def get_directions(self):
+        """Generates a flattened grid of (x,y,z,...) coordinates in a range of -1 to 1.
+        sidelen: int
+        dim: int"""
+        sidelen = 2*self.resolution
+        u = (torch.linspace(1, sidelen, steps=sidelen) - 0.5) / (sidelen // 2)
+        v = (torch.linspace(1, sidelen // 2, steps=sidelen // 2) - 0.5) / (sidelen // 2)
+        # indexing='ij' as future meshgrid behaviour will default to indexing='xy'
+        v_grid, u_grid = torch.meshgrid(v, u, indexing="ij")
+        uv = torch.stack((u_grid, v_grid), -1)  # shape=[sidelen/2,sidelen,2]
+        uv = uv.reshape(-1, 2)  # shape=[sidelen/2*sidelen,2]
+        # From: https://vgl.ict.usc.edu/Data/HighResProbes/
+        theta = np.pi * (uv[:, 0] - 1)
+        phi = np.pi * uv[:, 1]
+        self.sin_theta = torch.sin(phi)
+        directions = torch.stack(
+            (
+                torch.sin(phi) * torch.sin(theta),
+                torch.cos(phi),
+                -torch.sin(phi) * torch.cos(theta),
+            ),
+            -1,
+        )  # shape=[sidelen/2*sidelen,3]
+        return directions
 
     def resize(self, resolution):
         self.resolution = resolution

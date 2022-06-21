@@ -21,7 +21,7 @@ _log_dir.absolute().mkdir(exist_ok=True, parents=True)
 _save_path = Path(log_dir_path) / datetime.now().strftime("%Y_%m_%d_%H_%M")
 Path(_save_path).absolute().mkdir(exist_ok=True, parents=True)
 
-train_files_list = sorted(glob.glob(str(train_file_dir) + '/*.exr'))[:100]
+train_files_list = sorted(glob.glob(str(train_file_dir) + '/*.exr'))[:300]
 test_files_list = sorted(glob.glob(str(test_file_dir) + '/*.exr'))
 
 writer = SummaryWriter(_log_dir)
